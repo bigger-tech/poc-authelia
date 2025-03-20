@@ -1,0 +1,9 @@
+---
+users:
+  admin:
+    displayname: "Admin User"
+    password: "$argon2id$v=19$m=65536,t=3,p=4$VE9QU0VDUkVUUEFTU1dPUkQ$2P2pDKCHKwqGBgvBXJ8yQgLN7/7zr0wJEtq5D8h6LwE"  # Password: admin123
+    email: admin@example.com
+    groups:
+      - admins
+      - users 

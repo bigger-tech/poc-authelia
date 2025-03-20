@@ -1,0 +1,24 @@
+services:
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    volumes:
+      - ./config:/config:rw
+    ports:
+      - 9091:9091
+    environment:
+      - TZ=America/New_York
+    restart: unless-stopped
+    user: "0:0"  # Ejecutar como root temporalmente para debug
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data: 
