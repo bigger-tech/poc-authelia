@@ -1,24 +1,98 @@
+---
+networks:
+  net:
+    driver: 'bridge'
+
 services:
   authelia:
-    image: authelia/authelia:latest
+    image: 'authelia/authelia'
     container_name: authelia
     volumes:
-      - ./config:/config:rw
-    ports:
-      - 9091:9091
+      - './authelia:/config'
+    networks:
+      net: {}
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.authelia.rule: 'Host(`authelia.localhost.test`)'
+      traefik.http.routers.authelia.entrypoints: 'https'
+      traefik.http.routers.authelia.tls: 'true'
+      traefik.http.routers.authelia.tls.domains[0].main: 'localhost'
+      traefik.http.middlewares.authelia.forwardauth.address: 'http://authelia:9091/api/authz/forward-auth'
+      traefik.http.middlewares.authelia.forwardauth.trustForwardHeader: 'true'
+      traefik.http.middlewares.authelia.forwardauth.authResponseHeaders: 'Remote-User,Remote-Groups,Remote-Name,Remote-Email'
+    restart: 'unless-stopped'
+    healthcheck:
+      disable: true
     environment:
-      - TZ=America/New_York
-    restart: unless-stopped
-    user: "0:0"  # Ejecutar como root temporalmente para debug
-    depends_on:
-      - redis
+      TZ: 'Australia/Melbourne'
+      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET: 'a_very_long_secret_key_for_jwt_tokens'
+      AUTHELIA_SESSION_SECRET: 'a_very_secure_session_secret_key'
+      AUTHELIA_AUTHENTICATION_BACKEND_FILE_PATH: '/config/users_database.yml'
+      AUTHELIA_SESSION_DOMAIN: 'localhost.test'
+      AUTHELIA_STORAGE_LOCAL_PATH: '/config/db.sqlite3'
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: 'a_very_secure_encryption_key'
+      AUTHELIA_NOTIFIER_FILESYSTEM_FILENAME: '/config/notification.txt'
+      AUTHELIA_ACCESS_CONTROL_DEFAULT_POLICY: 'one_factor'
+      AUTHELIA_SERVER_DISABLE_HEALTHCHECK: 'true'
+      AUTHELIA_DEFAULT_REDIRECTION_URL: 'https://public.localhost.test'
 
-  redis:
-    image: redis:alpine
-    container_name: redis
+  traefik:
+    image: 'traefik:v3.3.4'
+    container_name: 'traefik'
     volumes:
-      - redis_data:/data
-    restart: unless-stopped
+      - './traefik:/etc/traefik'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    networks:
+      net: {}
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.api.rule: 'Host(`traefik.localhost.test`)'
+      traefik.http.routers.api.entrypoints: 'https'
+      traefik.http.routers.api.service: 'api@internal'
+      traefik.http.routers.api.tls: 'true'
+      traefik.http.routers.api.middlewares: 'authelia@docker'
+    ports:
+      - '80:80/tcp'
+      - '443:443/tcp'
+    command:
+      - '--api'
+      - '--providers.docker=true'
+      - '--providers.docker.exposedByDefault=false'
+      - '--entrypoints.http=true'
+      - '--entrypoints.http.address=:80'
+      - '--entrypoints.http.http.redirections.entrypoint.to=https'
+      - '--entrypoints.https=true'
+      - '--entrypoints.https.address=:443'
+      - '--log=true'
+      - '--log.level=DEBUG'
+      - '--entrypoints.https.http.tls=true'
+      - '--entrypoints.https.http.tls.domains[0].main=localhost.test'
+      - '--entrypoints.https.http.tls.domains[0].sans=*.localhost.test'
 
-volumes:
-  redis_data: 
+  secure:
+    image: 'traefik/whoami'
+    container_name: 'secure'
+    networks:
+      net: {}
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.secure.rule: 'Host(`secure.localhost.test`)'
+      traefik.http.routers.secure.entrypoints: 'https'
+      traefik.http.routers.secure.tls: 'true'
+      traefik.http.routers.secure.tls.domains[0].main: 'secure.localhost.test'
+      traefik.http.routers.secure.middlewares: 'authelia@docker'
+    restart: 'unless-stopped'
+
+  public:
+    image: 'traefik/whoami'
+    container_name: 'public'
+    networks:
+      net: {}
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.public.rule: 'Host(`public.localhost.test`)'
+      traefik.http.routers.public.entrypoints: 'https'
+      traefik.http.routers.public.tls: 'true'
+      traefik.http.routers.public.tls.domains[0].main: 'public.localhost.test'
+      traefik.http.routers.public.middlewares: 'authelia@docker'
+    restart: 'unless-stopped'

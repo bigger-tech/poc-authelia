@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
 
   // Si no hay usuario autenticado y no estamos en la página de login
   if (!authHeader && !request.nextUrl.pathname.startsWith('/login')) {
-    return NextResponse.redirect('http://localhost:9091')
+    // return NextResponse.redirect('http://localhost:9091')
   }
 
   // Si el usuario está autenticado, añade la información del usuario al header

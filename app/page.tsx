@@ -16,7 +16,7 @@ export default async function Home() {
             <p className="mb-2">Usuario: {user}</p>
             {groups && <p>Grupos: {groups}</p>}
             <a
-              href="http://localhost:9091/logout"
+              href="https://authelia.localhost.test/logout"
               className="mt-4 inline-block bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
             >
               Cerrar Sesión
@@ -26,7 +26,7 @@ export default async function Home() {
           <div className="text-center">
             <p className="mb-4">Por favor, inicia sesión para continuar</p>
             <a
-              href="http://localhost:9091"
+              href="https://authelia.localhost.test"
               className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
             >
               Iniciar Sesión
