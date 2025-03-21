@@ -1,36 +1,151 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Authelia Authentication Proof of Concept
 
-## Getting Started
+This project demonstrates how to implement Authelia as an authentication provider for web applications. It includes a Next.js frontend and a fully configured Authelia authentication server running in Docker containers with Traefik as a reverse proxy.
 
-First, run the development server:
+## System Overview
+
+This POC consists of the following components:
+
+- **Authelia**: Authentication server that provides Single Sign-On (SSO) and 2FA
+- **Traefik**: Reverse proxy that handles routing and integrates with Authelia
+- **Next.js App**: Demo application that consumes authentication information
+- **Demo Services**: Simple "whoami" containers (public and secure) to test authentication
+
+## Setup Instructions
+
+### 1. Configure Host Files
+
+For this demo to work properly, you need to add domain entries to your hosts file. This maps the domains to your local IP (127.0.0.1).
+
+**Edit your `/etc/hosts` file:**
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+sudo nano /etc/hosts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Add the following lines:**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+127.0.0.1       localhost.test
+127.0.0.1       authelia.localhost.test
+127.0.0.1       secure.localhost.test
+127.0.0.1       public.localhost.test
+127.0.0.1       traefik.localhost.test
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**After saving, flush your DNS cache:**
 
-## Learn More
+```bash
+# On macOS
+sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
 
-To learn more about Next.js, take a look at the following resources:
+# On Linux
+sudo systemd-resolve --flush-caches
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# On Windows (run in administrator PowerShell)
+ipconfig /flushdns
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 2. Start the Services
 
-## Deploy on Vercel
+```bash
+docker-compose up -d
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 3. Access the Services
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Authelia Dashboard**: https://authelia.localhost.test
+- **Protected Service**: https://secure.localhost.test
+- **Public Service**: https://public.localhost.test
+- **Traefik Dashboard**: https://traefik.localhost.test
+
+**Login Credentials:**
+- Username: `user1`
+- Password: `password`
+
+**Note:** You will receive SSL certificate warnings because this demo uses self-signed certificates. This is expected and can be safely bypassed for testing.
+
+## How Authelia Works
+
+### Authentication Flow
+
+1. **Request Interception**: 
+   - When a user tries to access a protected resource (like `secure.localhost.test`), Traefik forwards the request to Authelia first using the Forward Authentication middleware.
+
+2. **Authentication Check**:
+   - Authelia checks if the user is already authenticated by looking for a valid session cookie.
+   - If no valid session exists, the user is redirected to the login page.
+
+3. **Login Process**:
+   - User provides credentials on the Authelia login page.
+   - Authelia validates credentials against its user database.
+   - On successful login, Authelia sets a session cookie and redirects back to the original URL.
+
+4. **Access Control**:
+   - Traefik checks with Authelia again, this time with the session cookie.
+   - Authelia verifies the session and returns authentication headers to Traefik.
+   - Traefik forwards these headers to the backend service, allowing the service to identify the user.
+
+### Key Components in this Setup
+
+#### 1. Traefik Configuration
+
+- **Middleware**: Traefik is configured with the Authelia Forward Authentication middleware.
+- **Labels**: Docker services are labeled to specify which routes should be protected.
+- **TLS**: SSL certificates are provided for secure connections.
+
+#### 2. Authelia Configuration
+
+- **User Database**: Stored in `./authelia/users_database.yml` with hashed passwords.
+- **Session Management**: Controls cookie settings, expiration times.
+- **Access Control**: Defines security policies for different domains/paths.
+
+#### 3. Next.js Application
+
+- Accesses user information from authentication headers passed by Traefik.
+- Displays login/logout links and user details.
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Domain Resolution Problems**:
+   - Verify your hosts file has the correct entries
+   - Flush your DNS cache after making changes
+
+2. **Certificate Warnings**:
+   - These are expected with self-signed certificates
+   - Click "Advanced" and "Proceed" in your browser
+
+3. **Login Issues**:
+   - Check the credentials in `./authelia/users_database.yml`
+   - Ensure Authelia container is running properly
+
+4. **Cookie Problems**:
+   - Clear browser cookies and cache if experiencing login loops
+   - Ensure the session domain in Authelia configuration matches your domain setup
+
+### Viewing Logs
+
+```bash
+# View Authelia logs
+docker-compose logs authelia
+
+# View Traefik logs
+docker-compose logs traefik
+```
+
+## Further Customization
+
+- Edit `./authelia/configuration.yml` to modify authentication settings
+- Edit `docker-compose.yml` to change service configurations
+- Modify `app/page.tsx` to customize the frontend application
+
+## Security Considerations
+
+This is a demonstration setup and includes several configurations that would need to be modified for production use:
+
+- Replace self-signed certificates with proper SSL certificates
+- Use more secure password hashing settings
+- Implement proper secret management
+- Configure more granular access control rules
